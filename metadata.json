@@ -1,0 +1,6 @@
+{
+  "name": "Catch My Little Cutu ❤️",
+  "description": "An adorable 2D endless chase runner game where you dodge flying and rolling vegetables to escape your cute chaser!",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
