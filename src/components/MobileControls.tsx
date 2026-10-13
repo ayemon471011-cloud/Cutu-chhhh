@@ -5,20 +5,35 @@ interface MobileControlsProps {
   onJump: () => void;
   onSlideStart: () => void;
   onSlideEnd: () => void;
+  onNudgeLeft?: () => void;
+  onNudgeRight?: () => void;
 }
 
 export const MobileControls: React.FC<MobileControlsProps> = ({
   onJump,
   onSlideStart,
   onSlideEnd,
+  onNudgeLeft,
+  onNudgeRight,
 }) => {
+  const triggerHaptic = (duration = 20) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(duration);
+      }
+    } catch {
+      // Ignore if not supported
+    }
+  };
+
   return (
-    <div className="absolute bottom-4 left-0 right-0 px-6 flex justify-between items-end pointer-events-none z-20 select-none">
-      {/* Slide / Duck Button (Left side) */}
+    <div className="w-full px-3 py-2 flex items-center justify-between pointer-events-auto select-none gap-2">
+      {/* Slide / Duck Button (Left thumb) */}
       <button
         type="button"
         onTouchStart={(e) => {
           e.preventDefault();
+          triggerHaptic(25);
           onSlideStart();
         }}
         onTouchEnd={(e) => {
@@ -27,35 +42,61 @@ export const MobileControls: React.FC<MobileControlsProps> = ({
         }}
         onMouseDown={(e) => {
           e.preventDefault();
+          triggerHaptic(20);
           onSlideStart();
         }}
         onMouseUp={(e) => {
           e.preventDefault();
           onSlideEnd();
         }}
-        className="pointer-events-auto w-20 h-20 md:w-24 md:h-24 rounded-full bg-amber-400/80 active:bg-amber-500/90 backdrop-blur-md border-4 border-white shadow-xl flex flex-col items-center justify-center text-amber-950 active:scale-90 transition-transform active:shadow-inner touch-manipulation cursor-pointer"
+        className="w-[84px] h-[78px] sm:w-[94px] sm:h-[86px] rounded-3xl bg-gradient-to-b from-amber-300 to-amber-400 active:from-amber-400 active:to-amber-500 border-3 border-white shadow-[0_8px_20px_-4px_rgba(245,158,11,0.5)] flex flex-col items-center justify-center text-amber-950 active:scale-95 transition-transform active:shadow-inner touch-manipulation cursor-pointer select-none"
         aria-label="Slide or Duck"
       >
-        <ArrowDown className="w-8 h-8 md:w-10 md:h-10 stroke-[3]" />
-        <span className="text-[11px] md:text-xs font-black uppercase tracking-wider">Slide</span>
+        <ArrowDown className="w-7 h-7 sm:w-8 sm:h-8 stroke-[3.5] text-amber-950" />
+        <span className="text-[11px] sm:text-xs font-black uppercase tracking-wider mt-0.5">SLIDE</span>
       </button>
 
-      {/* Jump Button (Right side) */}
+      {/* Center Mini Nudge / Direction Arrows */}
+      <div className="flex flex-col items-center justify-center gap-1">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNudgeLeft?.()}
+            className="w-10 h-10 rounded-2xl bg-white/90 border-2 border-stone-200 shadow-sm flex items-center justify-center text-stone-700 active:scale-90 font-black text-xs hover:bg-stone-50 cursor-pointer"
+            title="Step back"
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            onClick={() => onNudgeRight?.()}
+            className="w-10 h-10 rounded-2xl bg-white/90 border-2 border-stone-200 shadow-sm flex items-center justify-center text-stone-700 active:scale-90 font-black text-xs hover:bg-stone-50 cursor-pointer"
+            title="Step forward"
+          >
+            ▶
+          </button>
+        </div>
+        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Position</span>
+      </div>
+
+      {/* Jump Button (Right thumb) */}
       <button
         type="button"
         onTouchStart={(e) => {
           e.preventDefault();
+          triggerHaptic(30);
           onJump();
         }}
         onMouseDown={(e) => {
           e.preventDefault();
+          triggerHaptic(25);
           onJump();
         }}
-        className="pointer-events-auto w-24 h-24 md:w-28 md:h-28 rounded-full bg-rose-500/85 active:bg-rose-600/95 backdrop-blur-md border-4 border-white shadow-2xl flex flex-col items-center justify-center text-white active:scale-90 transition-transform active:shadow-inner touch-manipulation cursor-pointer"
+        className="w-[92px] h-[82px] sm:w-[102px] sm:h-[90px] rounded-3xl bg-gradient-to-b from-rose-400 to-rose-500 active:from-rose-500 active:to-rose-600 border-3 border-white shadow-[0_8px_20px_-4px_rgba(244,63,94,0.5)] flex flex-col items-center justify-center text-white active:scale-95 transition-transform active:shadow-inner touch-manipulation cursor-pointer select-none"
         aria-label="Jump"
       >
-        <ArrowUp className="w-9 h-9 md:w-11 md:h-11 stroke-[3] animate-bounce" style={{ animationDuration: '1.2s' }} />
-        <span className="text-xs md:text-sm font-black uppercase tracking-wider">Jump!</span>
+        <ArrowUp className="w-8 h-8 sm:w-9 sm:h-9 stroke-[3.5] text-white animate-bounce" style={{ animationDuration: '1.4s' }} />
+        <span className="text-xs sm:text-sm font-black uppercase tracking-wider mt-0.5">JUMP!</span>
       </button>
     </div>
   );

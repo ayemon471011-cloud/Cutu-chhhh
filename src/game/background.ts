@@ -15,12 +15,12 @@ export class BackgroundRenderer {
     { x: 920, y: 130, scale: 0.9, speed: 10 },
   ];
 
-  public update(dt: number, scrollSpeed: number) {
+  public update(dt: number, scrollSpeed: number, width = VIRTUAL_WIDTH) {
     // Cloud drift
     for (const c of this.clouds) {
       c.x -= c.speed * dt + scrollSpeed * 0.05 * dt;
       if (c.x < -150) {
-        c.x = VIRTUAL_WIDTH + 80;
+        c.x = width + 80;
         c.y = 50 + Math.random() * 100;
       }
     }
@@ -29,20 +29,23 @@ export class BackgroundRenderer {
   public draw(
     ctx: CanvasRenderingContext2D,
     scrollOffset: number,
-    animTime: number
+    animTime: number,
+    width = VIRTUAL_WIDTH,
+    height = VIRTUAL_HEIGHT,
+    groundY = GROUND_Y
   ) {
     // 1. SKY GRADIENT (Soft pastel baby blue to warm blush dawn)
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, VIRTUAL_HEIGHT);
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
     skyGrad.addColorStop(0, '#E8F4FD');
     skyGrad.addColorStop(0.55, '#FBF0F4');
     skyGrad.addColorStop(1, '#FFE9EE');
     ctx.fillStyle = skyGrad;
-    ctx.fillRect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    ctx.fillRect(0, 0, width, height);
 
-    // 2. SOFT SUN WITH HEART GLOW
+    // 2. SOFT SUN WITH HEART GLOW (Top right corner of mobile or desktop view)
     ctx.save();
     const sunPulse = 1 + Math.sin(animTime * 2) * 0.05;
-    ctx.translate(880, 95);
+    ctx.translate(Math.max(280, width - 110), 85);
     ctx.scale(sunPulse, sunPulse);
     // Glow
     ctx.fillStyle = 'rgba(255, 235, 170, 0.45)';
@@ -84,21 +87,21 @@ export class BackgroundRenderer {
     }
 
     // 4. DISTANT ROLLING HILLS (Parallax 0.15)
-    const hillOffset = (scrollOffset * 0.15) % VIRTUAL_WIDTH;
+    const hillOffset = (scrollOffset * 0.15) % Math.max(400, width);
     ctx.save();
     ctx.fillStyle = '#D6ECBE';
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y);
-    for (let x = -100; x <= VIRTUAL_WIDTH + 100; x += 60) {
+    ctx.moveTo(0, groundY);
+    for (let x = -100; x <= width + 100; x += 60) {
       const hillY =
-        GROUND_Y -
+        groundY -
         85 -
         Math.sin((x + hillOffset) * 0.004) * 35 -
         Math.cos((x + hillOffset) * 0.009) * 20;
       ctx.lineTo(x, hillY);
     }
-    ctx.lineTo(VIRTUAL_WIDTH, GROUND_Y);
-    ctx.lineTo(0, GROUND_Y);
+    ctx.lineTo(width, groundY);
+    ctx.lineTo(0, groundY);
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = '#B3DC94';
@@ -110,12 +113,12 @@ export class BackgroundRenderer {
     const midOffset = (scrollOffset * 0.4) % 400;
     ctx.save();
     ctx.fillStyle = '#94D977';
-    for (let bx = -midOffset; bx < VIRTUAL_WIDTH + 200; bx += 220) {
+    for (let bx = -midOffset; bx < width + 200; bx += 220) {
       // Clustered rounded cartoon bush
       ctx.beginPath();
-      ctx.arc(bx + 40, GROUND_Y - 26, 28, 0, Math.PI * 2);
-      ctx.arc(bx + 70, GROUND_Y - 36, 34, 0, Math.PI * 2);
-      ctx.arc(bx + 100, GROUND_Y - 24, 26, 0, Math.PI * 2);
+      ctx.arc(bx + 40, groundY - 26, 28, 0, Math.PI * 2);
+      ctx.arc(bx + 70, groundY - 36, 34, 0, Math.PI * 2);
+      ctx.arc(bx + 100, groundY - 24, 26, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#71BF52';
       ctx.lineWidth = 2.5;
@@ -124,9 +127,9 @@ export class BackgroundRenderer {
       // Bush berries / strawberry dots
       ctx.fillStyle = '#FF5277';
       ctx.beginPath();
-      ctx.arc(bx + 52, GROUND_Y - 28, 3.5, 0, Math.PI * 2);
-      ctx.arc(bx + 85, GROUND_Y - 32, 4, 0, Math.PI * 2);
-      ctx.arc(bx + 70, GROUND_Y - 18, 3.5, 0, Math.PI * 2);
+      ctx.arc(bx + 52, groundY - 28, 3.5, 0, Math.PI * 2);
+      ctx.arc(bx + 85, groundY - 32, 4, 0, Math.PI * 2);
+      ctx.arc(bx + 70, groundY - 18, 3.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = '#94D977'; // reset for next
     }
@@ -136,38 +139,38 @@ export class BackgroundRenderer {
     // Grass top border
     ctx.save();
     ctx.fillStyle = '#7AC85E';
-    ctx.fillRect(0, GROUND_Y - 12, VIRTUAL_WIDTH, 14);
+    ctx.fillRect(0, groundY - 12, width, 14);
 
     // Warm pastel dirt trail
     ctx.fillStyle = '#F5E6CE';
-    ctx.fillRect(0, GROUND_Y, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - GROUND_Y);
+    ctx.fillRect(0, groundY, width, Math.max(50, height - groundY));
 
     // Ground edge line with rounded cartoon stroke
     ctx.strokeStyle = '#2C1E19';
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y);
-    ctx.lineTo(VIRTUAL_WIDTH, GROUND_Y);
+    ctx.moveTo(0, groundY);
+    ctx.lineTo(width, groundY);
     ctx.stroke();
 
     // Grass scalloped fringe on the border
     ctx.fillStyle = '#65B548';
     const fringeStep = 24;
     const fringeShift = scrollOffset % fringeStep;
-    for (let fx = -fringeShift; fx < VIRTUAL_WIDTH + fringeStep; fx += fringeStep) {
+    for (let fx = -fringeShift; fx < width + fringeStep; fx += fringeStep) {
       ctx.beginPath();
-      ctx.arc(fx, GROUND_Y - 1, 6, Math.PI, 0, false);
+      ctx.arc(fx, groundY - 1, 6, Math.PI, 0, false);
       ctx.fill();
     }
 
     // Little pebbles and daisies along the road
     const pathDetailStep = 180;
     const pathShift = scrollOffset % pathDetailStep;
-    for (let px = -pathShift; px < VIRTUAL_WIDTH + pathDetailStep; px += pathDetailStep) {
+    for (let px = -pathShift; px < width + pathDetailStep; px += pathDetailStep) {
       // Pebble
       ctx.fillStyle = '#DFC7A7';
       ctx.beginPath();
-      ctx.ellipse(px + 40, GROUND_Y + 22, 6, 3.5, 0.2, 0, Math.PI * 2);
+      ctx.ellipse(px + 40, groundY + 22, 6, 3.5, 0.2, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#2C1E19';
       ctx.lineWidth = 1.4;
@@ -176,7 +179,7 @@ export class BackgroundRenderer {
       // Wild Daisy flower on the edge
       const flowerSway = Math.sin(animTime * 4 + px) * 0.15;
       ctx.save();
-      ctx.translate(px + 120, GROUND_Y - 4);
+      ctx.translate(px + 120, groundY - 4);
       ctx.rotate(flowerSway);
       // Petals
       ctx.fillStyle = '#FFFFFF';
@@ -196,12 +199,12 @@ export class BackgroundRenderer {
 
     // Lower path earth texture
     ctx.fillStyle = '#E8D4B7';
-    ctx.fillRect(0, GROUND_Y + 45, VIRTUAL_WIDTH, VIRTUAL_HEIGHT - (GROUND_Y + 45));
+    ctx.fillRect(0, groundY + 45, width, Math.max(0, height - (groundY + 45)));
     ctx.strokeStyle = '#D9BE9B';
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0, GROUND_Y + 45);
-    ctx.lineTo(VIRTUAL_WIDTH, GROUND_Y + 45);
+    ctx.moveTo(0, groundY + 45);
+    ctx.lineTo(width, groundY + 45);
     ctx.stroke();
 
     ctx.restore();

@@ -8,10 +8,10 @@ export const RUNNER_CONFIG = {
   width: 86,
   height: 98,
   slideHeight: 54,
-  jumpSpeed: -650,
-  gravity: 1650,
+  jumpSpeed: -720,
+  gravity: 1600,
   maxFallSpeed: 850,
-  baseX: 420, // Yellow runner stays nicely around 40-45% of the screen
+  baseX: 380, // Yellow runner stays comfortably positioned for great forward visibility
   speedBoostMax: 80,
 };
 

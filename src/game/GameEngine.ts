@@ -31,6 +31,10 @@ export class GameEngine {
   private scale: number = 1;
   private offsetX: number = 0;
   private offsetY: number = 0;
+  private virtualWidth: number = VIRTUAL_WIDTH;
+  private virtualHeight: number = VIRTUAL_HEIGHT;
+  private groundY: number = GROUND_Y;
+  private isPortraitMode: boolean = false;
 
   // State
   private state: GameState = 'MENU';
@@ -134,23 +138,58 @@ export class GameEngine {
     soundManager.stopBGM();
   }
 
-  private handleResize = () => {
-    const dpr = window.devicePixelRatio || 1;
+  public handleResize = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
     const rect = this.canvas.getBoundingClientRect();
-    const width = rect.width;
-    const height = rect.height;
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || window.innerHeight;
 
-    this.canvas.width = width * dpr;
-    this.canvas.height = height * dpr;
+    this.canvas.width = Math.round(width * dpr);
+    this.canvas.height = Math.round(height * dpr);
 
-    // Aspect ratio fitting into virtual resolution (1000 x 560)
-    const scaleX = width / VIRTUAL_WIDTH;
-    const scaleY = height / VIRTUAL_HEIGHT;
+    // Gameplay canvas always uses the canonical 1000 x 560 virtual coordinate space
+    this.virtualWidth = VIRTUAL_WIDTH;
+    this.virtualHeight = VIRTUAL_HEIGHT;
+    this.groundY = GROUND_Y;
+
+    // Scale canvas to fit virtual width & height with letterboxing if necessary
+    const scaleX = this.canvas.width / this.virtualWidth;
+    const scaleY = this.canvas.height / this.virtualHeight;
     this.scale = Math.min(scaleX, scaleY);
+    this.offsetX = Math.round((this.canvas.width - this.virtualWidth * this.scale) / 2);
+    this.offsetY = Math.round((this.canvas.height - this.virtualHeight * this.scale) / 2);
 
-    this.offsetX = (width - VIRTUAL_WIDTH * this.scale) / 2;
-    this.offsetY = (height - VIRTUAL_HEIGHT * this.scale) / 2;
+    const baseX = this.getBaseRunnerX();
+    if (this.state === 'MENU') {
+      this.runnerX = baseX + 50;
+      this.chaserX = baseX - 70;
+      this.runnerY = this.groundY - RUNNER_CONFIG.height / 2;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
+    } else if (this.isGrounded) {
+      this.runnerY = this.groundY - RUNNER_CONFIG.height / 2;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
+    }
   };
+
+  public getBaseRunnerX(): number {
+    return this.virtualWidth * 0.42;
+  }
+
+  public nudgeLeft() {
+    if (this.state !== 'PLAYING' && this.state !== 'PLAYER_RECOVERING') return;
+    this.targetRunnerXOffset = -55;
+    setTimeout(() => {
+      this.targetRunnerXOffset = 0;
+    }, 280);
+  }
+
+  public nudgeRight() {
+    if (this.state !== 'PLAYING' && this.state !== 'PLAYER_RECOVERING') return;
+    this.targetRunnerXOffset = 55;
+    setTimeout(() => {
+      this.targetRunnerXOffset = 0;
+    }, 280);
+  }
 
   private handleKeyDown = (e: KeyboardEvent) => {
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
@@ -238,6 +277,12 @@ export class GameEngine {
     this.targetRunnerXOffset = 0;
     this.currentRunnerXOffset = 0;
 
+    const baseX = this.getBaseRunnerX();
+    this.runnerX = baseX;
+    this.runnerY = this.groundY - RUNNER_CONFIG.height / 2;
+    this.chaserX = baseX - 180;
+    this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
+
     soundManager.startBGM();
     if (this.onStateChange) this.onStateChange(this.state);
   }
@@ -315,11 +360,12 @@ export class GameEngine {
     if (this.state === 'MENU') {
       this.runnerAction = 'IDLE';
       this.chaserAction = 'IDLE';
-      this.runnerX = VIRTUAL_WIDTH * 0.58;
-      this.chaserX = VIRTUAL_WIDTH * 0.38;
-      this.runnerY = GROUND_Y - RUNNER_CONFIG.height / 2;
-      this.chaserY = GROUND_Y - CHASER_CONFIG.height / 2;
-      this.background.update(dt, 60);
+      const baseX = this.getBaseRunnerX();
+      this.runnerX = baseX + (this.isPortraitMode ? 35 : 50);
+      this.chaserX = baseX - (this.isPortraitMode ? 45 : 70);
+      this.runnerY = this.groundY - RUNNER_CONFIG.height / 2;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
+      this.background.update(dt, 60, this.virtualWidth);
       this.particles.update(dt);
       return;
     }
@@ -348,7 +394,7 @@ export class GameEngine {
 
       // 2. PARALLAX SCROLLING
       this.scrollOffset += currentDiff.scrollSpeed * dt;
-      this.background.update(dt, currentDiff.scrollSpeed);
+      this.background.update(dt, currentDiff.scrollSpeed, this.virtualWidth);
 
       // 3. HORIZONTAL NUDGE (Player left/right arrows)
       let nudge = 0;
@@ -356,7 +402,7 @@ export class GameEngine {
       if (this.keysPressed['ArrowRight']) nudge += 50;
       this.targetRunnerXOffset = nudge;
       this.currentRunnerXOffset += (this.targetRunnerXOffset - this.currentRunnerXOffset) * dt * 6;
-      this.runnerX = RUNNER_CONFIG.baseX + this.currentRunnerXOffset;
+      this.runnerX = this.getBaseRunnerX() + this.currentRunnerXOffset;
 
       // 4. PLAYER VERTICAL PHYSICS
       if (!this.isGrounded) {
@@ -367,13 +413,13 @@ export class GameEngine {
         this.runnerY += this.runnerVy * dt;
 
         // Ground check
-        const targetGroundY = GROUND_Y - RUNNER_CONFIG.height / 2;
+        const targetGroundY = this.groundY - RUNNER_CONFIG.height / 2;
         if (this.runnerY >= targetGroundY) {
           this.runnerY = targetGroundY;
           this.runnerVy = 0;
           this.isGrounded = true;
           this.runnerAction = this.isSliding ? 'SLIDE' : 'RUN';
-          this.particles.addDust(this.runnerX, GROUND_Y, 3);
+          this.particles.addDust(this.runnerX, this.groundY, 3);
           soundManager.playLand();
         } else {
           this.runnerAction = this.runnerVy < 0 ? 'JUMP' : 'FALL';
@@ -410,15 +456,15 @@ export class GameEngine {
         this.runnerX -
         (CHASER_CONFIG.minXOffset + distanceFraction * (CHASER_CONFIG.maxXOffset - CHASER_CONFIG.minXOffset));
       this.chaserX += (targetChaserX - this.chaserX) * dt * 5;
-      this.chaserY = GROUND_Y - CHASER_CONFIG.height / 2;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
       this.chaserAction = 'RUN';
 
       // Dust particles while running
       if (this.isGrounded && Math.random() < 0.25) {
-        this.particles.addDust(this.runnerX - 25, GROUND_Y);
+        this.particles.addDust(this.runnerX - 25, this.groundY);
       }
       if (Math.random() < 0.28) {
-        this.particles.addDust(this.chaserX - 28, GROUND_Y);
+        this.particles.addDust(this.chaserX - 28, this.groundY);
       }
 
       // 8. PROCEDURAL OBSTACLE SPAWNING
@@ -441,9 +487,22 @@ export class GameEngine {
     } else if (this.state === 'PLAYER_CAPTURED') {
       // Transitioning smoothly into the original snug embrace and kiss sequence
       this.background.update(dt, 0); // scenery stops
+
+      // Smoothly bring runner down to ground if captured while airborne
+      const targetGroundY = this.groundY - RUNNER_CONFIG.height / 2;
+      if (this.runnerY < targetGroundY) {
+        this.runnerY += (targetGroundY - this.runnerY) * Math.min(1, dt * 10);
+      } else {
+        this.runnerY = targetGroundY;
+      }
+
+      // Ensure horizontal position is comfortably placed on screen
+      this.runnerX = Math.max(220, Math.min(this.virtualWidth - 220, this.runnerX));
+
       // White Cutu glides right into Yellow Cutu for the loving embrace
       const targetCaptureX = this.runnerX - 22;
       this.chaserX += (targetCaptureX - this.chaserX) * dt * 7;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
       this.runnerAction = 'CAPTURED';
       this.chaserAction = 'CATCH';
 
@@ -460,8 +519,10 @@ export class GameEngine {
       this.kissTimer += dt;
       this.background.update(dt, 0);
 
-      // White Cutu hugs Yellow Cutu closely
+      // Keep characters firmly anchored on the ground ("placed accordingly")
+      this.runnerY = this.groundY - RUNNER_CONFIG.height / 2;
       this.chaserX = this.runnerX - 18;
+      this.chaserY = this.groundY - CHASER_CONFIG.height / 2;
 
       // Periodic kisses every 0.55s!
       if (this.kissTimer - this.lastSmoochTime >= 0.55 && this.kissTimer < 2.6) {
@@ -473,7 +534,7 @@ export class GameEngine {
         this.particles.addKissText(this.runnerX + (Math.random() - 0.5) * 15, this.runnerY - 45, phrase);
       }
 
-      // After 2.8s of adorable kiss animation, show Game Over screen!
+      // After 2.8s of adorable original kiss animation, show Game Over screen!
       if (this.kissTimer >= 2.8) {
         this.state = 'GAME_OVER';
         // Save high score
@@ -496,7 +557,7 @@ export class GameEngine {
     // Check safety margin: don't spawn if another obstacle is too close to spawn edge
     if (this.obstacles.length > 0) {
       const lastObs = this.obstacles[this.obstacles.length - 1];
-      if (lastObs.x > VIRTUAL_WIDTH - 280) return;
+      if (lastObs.x > this.virtualWidth - (this.isPortraitMode ? 220 : 280)) return;
     }
 
     const roll = Math.random();
@@ -505,7 +566,7 @@ export class GameEngine {
     let isOverhead = false;
     let width = 50;
     let height = 50;
-    let y = GROUND_Y - height;
+    let y = this.groundY - height;
 
     if (roll < currentDiff.overheadChance) {
       // Overhead hanging obstacle (requires slide!)
@@ -514,7 +575,7 @@ export class GameEngine {
       width = 54;
       height = 70;
       // Position high enough so that sliding player (height 54px) passes safely underneath!
-      y = GROUND_Y - RUNNER_CONFIG.slideHeight - height - 8;
+      y = this.groundY - RUNNER_CONFIG.slideHeight - height - 8;
     } else if (roll < currentDiff.overheadChance + currentDiff.flyingChance) {
       // Flying obstacle: either low glider (jumpable) or mid-air (slideable)
       const flyingTypes: ObstacleType[] = ['carrot_flying', 'tomato_spin', 'cucumber_flying'];
@@ -525,10 +586,10 @@ export class GameEngine {
       const isLowGlider = Math.random() < 0.6;
       if (isLowGlider) {
         // Low flying vegetable - jump over it cleanly!
-        y = GROUND_Y - 56;
+        y = this.groundY - 56;
       } else {
         // Mid-air flying vegetable - slide underneath it!
-        y = GROUND_Y - 105;
+        y = this.groundY - 105;
       }
     } else {
       // Ground obstacle
@@ -542,13 +603,13 @@ export class GameEngine {
       type = groundTypes[Math.floor(Math.random() * groundTypes.length)];
       width = 48;
       height = type === 'pumpkin_roll' ? 44 : type === 'broccoli_bounce' ? 52 : 50;
-      y = GROUND_Y - height;
+      y = this.groundY - height;
     }
 
     this.obstacles.push({
       id: this.nextObstacleId++,
       type,
-      x: VIRTUAL_WIDTH + 60,
+      x: this.virtualWidth + 60,
       y,
       width,
       height,
@@ -604,7 +665,7 @@ export class GameEngine {
       }
 
       // Check dodge score
-      if (!obs.passed && obs.x + obs.width < this.runnerX - 30) {
+      if (!obs.passed && obs.x + obs.width < this.runnerX + 15) {
         obs.passed = true;
         this.vegetablesDodged++;
         this.score += 25;
@@ -619,24 +680,30 @@ export class GameEngine {
       ) {
         const obsHitbox = getObstacleHitbox(obs);
 
-        // WHEN JUMPING OVER A VEGETABLE: Ensure zero damage!
-        // If the player is airborne and their feet are above the obstacle hitbox, safe jump!
+        // WHEN JUMPING OVER A VEGETABLE: Ensure ZERO damage!
         if (isAirborne && !obs.isOverhead) {
-          const playerBottom = playerHitbox.y + playerHitbox.height;
-          if (playerBottom <= obsHitbox.y + 10) {
-            // Clean jump over the vegetable - no damage taken!
+          // 1. Any ground vegetable (carrots, pumpkins, broccoli, cucumbers, eggplants):
+          // As long as the player is in the air jumping over it, take ZERO damage!
+          if (!obs.isFlying) {
+            continue;
+          }
+
+          // 2. Flying vegetables:
+          // If the player jumped and their feet or center are clearing the vegetable:
+          const playerFeet = playerHitbox.y + playerHitbox.height;
+          if (playerFeet <= obsHitbox.y + obsHitbox.height * 0.6 || this.runnerY < obs.y) {
             continue;
           }
         }
 
-        // WHEN SLIDING UNDER AN OVERHEAD OBSTACLE: Ensure safe slide!
+        // WHEN SLIDING UNDER AN OVERHEAD OBSTACLE: Ensure safe slide with ZERO damage!
         if (isSliding && obs.isOverhead) {
-          const playerTop = playerHitbox.y;
-          const obsBottom = obsHitbox.y + obsHitbox.height;
-          if (playerTop >= obsBottom - 8) {
-            // Clean slide underneath - no damage taken!
-            continue;
-          }
+          continue;
+        }
+
+        // WHEN SLIDING UNDER HIGH FLYING VEGETABLES: Safe ducking with ZERO damage!
+        if (isSliding && obs.isFlying && obs.y < this.groundY - 65) {
+          continue;
         }
 
         if (checkCollision(playerHitbox, obsHitbox)) {
@@ -688,23 +755,30 @@ export class GameEngine {
   private render() {
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // Setup coordinate space: Virtual Width x Height scaled to fit center of canvas
+    // Setup coordinate space: Virtual Width x Height scaled to fit canvas
     this.ctx.save();
     this.ctx.translate(this.offsetX, this.offsetY);
     this.ctx.scale(this.scale, this.scale);
 
     // Clip to virtual boundaries for crisp presentation
     this.ctx.beginPath();
-    this.ctx.rect(0, 0, VIRTUAL_WIDTH, VIRTUAL_HEIGHT);
+    this.ctx.rect(0, 0, this.virtualWidth, this.virtualHeight);
     this.ctx.clip();
 
     // 1. Draw Background
-    this.background.draw(this.ctx, this.scrollOffset, this.animTime);
+    this.background.draw(
+      this.ctx,
+      this.scrollOffset,
+      this.animTime,
+      this.virtualWidth,
+      this.virtualHeight,
+      this.groundY
+    );
 
     // 2. Draw Obstacles
     if (this.state !== 'MENU') {
       for (const obs of this.obstacles) {
-        drawObstacle(this.ctx, obs, this.animTime);
+        drawObstacle(this.ctx, obs, this.animTime, this.groundY);
       }
     }
 
@@ -714,7 +788,7 @@ export class GameEngine {
       drawOriginalKissAnimation({
         ctx: this.ctx,
         x: this.runnerX,
-        y: GROUND_Y - RUNNER_CONFIG.height / 2,
+        y: this.groundY - RUNNER_CONFIG.height / 2,
         animTime: this.animTime,
         kissTimer: this.kissTimer,
       });

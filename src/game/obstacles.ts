@@ -8,13 +8,13 @@ function applyStroke(ctx: CanvasRenderingContext2D, color = '#2C1E19', width = 2
   ctx.lineJoin = 'round';
 }
 
-export function drawObstacle(ctx: CanvasRenderingContext2D, obs: Obstacle, animTime: number) {
+export function drawObstacle(ctx: CanvasRenderingContext2D, obs: Obstacle, animTime: number, groundY = GROUND_Y) {
   ctx.save();
   ctx.translate(obs.x + obs.width / 2, obs.y + obs.height / 2);
 
   // Soft shadow on ground if on ground or low flying
   if (!obs.isOverhead) {
-    const distToGround = Math.max(0, (GROUND_Y - (obs.y + obs.height)));
+    const distToGround = Math.max(0, (groundY - (obs.y + obs.height)));
     const shadowAlpha = Math.max(0.08, 0.28 - distToGround * 0.001);
     const shadowW = obs.width * 0.45;
 
@@ -395,14 +395,16 @@ function drawCuteVeggieFace(ctx: CanvasRenderingContext2D, cx: number, cy: numbe
  * Hitbox is slightly smaller than visual bounds so near misses feel awesome and fair!
  */
 export function getObstacleHitbox(obs: Obstacle): Rect {
-  const paddingX = obs.width * 0.18;
-  const paddingY = obs.height * 0.18;
+  const paddingX = obs.width * 0.22;
+  // Give generous top padding for ground obstacles so jumping over them cleanly clears leaves/stems!
+  const paddingTop = obs.isOverhead ? obs.height * 0.15 : obs.height * 0.24;
+  const paddingBottom = obs.height * 0.12;
 
   return {
     x: obs.x + paddingX,
-    y: obs.y + paddingY,
+    y: obs.y + paddingTop,
     width: obs.width - paddingX * 2,
-    height: obs.height - paddingY * 2,
+    height: obs.height - (paddingTop + paddingBottom),
   };
 }
 
